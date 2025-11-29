@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Task Analyzer</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Mermaid.js for dependency graph -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📊 Smart Task Analyzer</h1>
+            <p class="subtitle">AI-powered task prioritization using multi-factor analysis with customizable weights</p>
+            
+            <!-- Toolbar with undo/redo and export -->
+            <div class="toolbar">
+                <div class="toolbar-group">
+                    <button id="undo-btn" class="toolbar-btn" onclick="undo()" disabled title="Undo (Ctrl+Z)">
+                        ↩️ Undo
+                    </button>
+                    <button id="redo-btn" class="toolbar-btn" onclick="redo()" disabled title="Redo (Ctrl+Y)">
+                        ↪️ Redo
+                    </button>
+                </div>
+                <div class="toolbar-group">
+                    <button class="toolbar-btn" onclick="showExportModal()" title="Export (Ctrl+E)">
+                        📤 Export
+                    </button>
+                </div>
+                <div id="keyboard-shortcuts" class="toolbar-group shortcuts-container"></div>
+            </div>
+        </header>
+        
+        <!-- Time Context Banner -->
+        <div id="time-context" class="time-context-banner" style="display: none;"></div>
+
+        <main>
+            <!-- Strategy & Weight Selection -->
+            <section class="strategy-section">
+                <h2>🎯 Prioritization Strategy</h2>
+                
+                <div class="strategy-select-wrapper">
+                    <select id="strategy-select">
+                        <option value="smart_balance">⚖️ Smart Balance - Balanced consideration of all factors</option>
+                        <option value="fastest_wins">⚡ Fastest Wins - Quick tasks first</option>
+                        <option value="high_impact">🎯 High Impact - Important tasks first</option>
+                        <option value="deadline_driven">📅 Deadline Driven - Urgent deadlines first</option>
+                        <option value="custom">⚙️ Custom Weights - Configure your own</option>
+                    </select>
+                </div>
+                
+                <!-- Custom Weights Panel -->
+                <div class="weight-controls" style="display: none;">
+                    <h4>⚙️ Custom Algorithm Weights</h4>
+                    <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: var(--spacing-md);">
+                        Adjust how much each factor influences the priority score. Weights must sum to 1.0.
+                    </p>
+                    <div class="weight-sliders">
+                        <div class="weight-slider-group">
+                            <label>
+                                ⏰ Urgency
+                                <span id="urgency-value">0.35</span>
+                            </label>
+                            <input type="range" id="urgency-weight" min="0" max="1" step="0.05" value="0.35">
+                        </div>
+                        <div class="weight-slider-group">
+                            <label>
+                                ⭐ Importance
+                                <span id="importance-value">0.30</span>
+                            </label>
+                            <input type="range" id="importance-weight" min="0" max="1" step="0.05" value="0.30">
+                        </div>
+                        <div class="weight-slider-group">
+                            <label>
+                                💪 Effort (Quick Wins)
+                                <span id="effort-value">0.20</span>
+                            </label>
+                            <input type="range" id="effort-weight" min="0" max="1" step="0.05" value="0.20">
+                        </div>
+                        <div class="weight-slider-group">
+                            <label>
+                                🔗 Dependencies
+                                <span id="dependencies-value">0.15</span>
+                            </label>
+                            <input type="range" id="dependencies-weight" min="0" max="1" step="0.05" value="0.15">
+                        </div>
+                    </div>
+                    <div class="weight-total">
+                        <span>Total: <strong id="weight-total">1.00</strong></span>
+                        <button id="normalize-weights" class="normalize-btn">🔄 Normalize to 1.0</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Task Input Section -->
+            <section class="input-section">
+                <h2>➕ Add New Task</h2>
+                <form id="task-form">
+                    <div class="form-group">
+                        <label for="task-title">Task Title *</label>
+                        <input type="text" id="task-title" required placeholder="e.g., Fix authentication bug">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="task-description">Description (optional)</label>
+                        <input type="text" id="task-description" placeholder="Brief description of the task">
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="task-deadline">Deadline *</label>
+                            <input type="date" id="task-deadline" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="task-hours">Estimated Hours *</label>
+                            <input type="number" id="task-hours" required min="0.5" step="0.5" value="2" placeholder="2">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="task-importance">Importance (1-5) *</label>
+                            <div class="importance-slider">
+                                <input type="range" id="task-importance" min="1" max="5" value="3">
+                                <span id="importance-display">3</span>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="task-dependencies">Dependencies (Task IDs)</label>
+                            <input type="text" id="task-dependencies" placeholder="e.g., 1, 3, 5">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">➕ Add Task</button>
+                </form>
+            </section>
+
+            <!-- Task List Section -->
+            <section class="task-list-section">
+                <div class="section-header">
+                    <h2>📋 Your Tasks <span id="task-count">0</span></h2>
+                    <button id="analyze-btn" class="btn btn-success">🔍 Analyze & Prioritize</button>
+                </div>
+                <div id="task-list" class="task-list">
+                    <div class="empty-state">
+                        <span class="empty-icon">📝</span>
+                        <p>No tasks yet. Add your first task above!</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Results Section -->
+            <section id="results-section" style="display: none;">
+                <h2>📈 Analysis Results</h2>
+                
+                <!-- View Toggle -->
+                <div class="view-toggle">
+                    <button class="view-btn active" data-view="list">📋 Priority List</button>
+                    <button class="view-btn" data-view="matrix">📊 Eisenhower Matrix</button>
+                    <button class="view-btn" data-view="graph">🔗 Dependency Graph</button>
+                </div>
+
+                <!-- List View -->
+                <div id="list-view">
+                    <div id="prioritized-list"></div>
+                </div>
+
+                <!-- Matrix View -->
+                <div id="matrix-view" style="display: none;">
+                    <div class="eisenhower-matrix">
+                        <div id="quadrant-do-first" class="quadrant">
+                            <h4>🔥 Do First (Urgent & Important)</h4>
+                            <div class="quadrant-tasks"></div>
+                        </div>
+                        <div id="quadrant-schedule" class="quadrant">
+                            <h4>📅 Schedule (Important, Not Urgent)</h4>
+                            <div class="quadrant-tasks"></div>
+                        </div>
+                        <div id="quadrant-delegate" class="quadrant">
+                            <h4>👥 Delegate (Urgent, Not Important)</h4>
+                            <div class="quadrant-tasks"></div>
+                        </div>
+                        <div id="quadrant-eliminate" class="quadrant">
+                            <h4>🗑️ Eliminate (Neither)</h4>
+                            <div class="quadrant-tasks"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Graph View -->
+                <div id="graph-view" style="display: none;">
+                    <div id="dependency-graph"></div>
+                </div>
+
+                <!-- Priority Heatmap -->
+                <div id="priority-heatmap" class="heatmap-container" style="display: none;"></div>
+            </section>
+        </main>
+
+        <!-- Loading Overlay -->
+        <div id="loading-overlay" style="display: none;">
+            <div class="spinner"></div>
+            <p>Analyzing tasks with AI...</p>
+        </div>
+        
+        <!-- Export Modal -->
+        <div id="export-modal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>📤 Export Tasks</h3>
+                    <button class="modal-close" onclick="closeExportModal()">×</button>
+                </div>
+                <div class="modal-body">
+                    <p>Choose export format:</p>
+                    <div class="export-options">
+                        <button class="export-btn" onclick="exportAsJSON()">
+                            <span class="export-icon">📄</span>
+                            <span>JSON</span>
+                        </button>
+                        <button class="export-btn" onclick="exportAsCSV()">
+                            <span class="export-icon">📊</span>
+                            <span>CSV</span>
+                        </button>
+                        <button class="export-btn" onclick="copyToClipboard()">
+                            <span class="export-icon">📋</span>
+                            <span>Copy</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p>Smart Task Analyzer v2.0 - Built with Django REST Framework & Multi-Factor AI Algorithm</p>
+        <p class="footer-hint">Press <kbd>?</kbd> for keyboard shortcuts</p>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>

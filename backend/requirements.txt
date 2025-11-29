@@ -1,0 +1,5 @@
+# Smart Task Analyzer - Python Dependencies
+
+Django>=4.0,<6.0
+djangorestframework>=3.14.0
+django-cors-headers>=4.0.0
